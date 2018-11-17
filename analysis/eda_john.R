@@ -38,4 +38,16 @@ iqr.outliers <- lapply(data, function(x){
 
 # remove majority NA rows
 data <- data[-c(92:97),]
+data$prbconv <- as.numeric(data$prbconv)
 
+library(corrplot)
+corrplot(cor(data))
+
+# possibly look at scale + centering variables
+
+model1 <- lm(prbarr ~ polpc, data = data)
+model2 <- lm(prbconv ~ ? + ?, data = data)
+model3 <- lm(prbpris ~ ? + ? + ?, data = data)
+
+#use stargazer to compare linear models
+library(stargazer)
