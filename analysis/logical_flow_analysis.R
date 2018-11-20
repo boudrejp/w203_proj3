@@ -90,7 +90,7 @@ corrplot(cor.matrix, type = "upper")
 # density appears to have a strong correlation with log crimerate
 # pctymle also appears to be close to independent of most other variables, let's try this
 
-linear.model.1 <- lm(log.crmrte ~ density + pctymle, data = data)
+linear.model.1 <- lm(log.crmrte ~ polpc, data = data)
 summary(linear.model.1)
 
 # now let's look at adding a few more terms
@@ -99,11 +99,11 @@ summary(linear.model.1)
 # polpc should decrease crime and be relatively independent of others
 # taxpc might be correlated with polpc but is independent of all others more or less
 
-linear.model.2 <- lm(log.crmrte ~ density + pctymle + polpc + taxpc + pctmin80, data = data)
+linear.model.2 <- lm(log.crmrte ~ density + polpc + taxpc, data = data)
 summary(linear.model.2)
 
 # now let's just dump all of them in here
-linear.model.3 <- lm(log.crmrte ~ ., data = data)
+linear.model.3 <- lm(log.crmrte ~ density + polpc + taxpc + west + central + wsta + avgsen, data = data)
 summary(linear.model.3)
 
 # we have highest r squared value here with this one
