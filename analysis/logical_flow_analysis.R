@@ -92,3 +92,18 @@ corrplot(cor.matrix, type = "upper")
 
 linear.model.1 <- lm(log.crmrte ~ density + pctymle, data = data)
 summary(linear.model.1)
+
+# now let's look at adding a few more terms
+# pctmin80 should be largely independent here and i think could help
+# wages all appear to be correlated with density... probably will absorb some causality. keep them out
+# polpc should decrease crime and be relatively independent of others
+# taxpc might be correlated with polpc but is independent of all others more or less
+
+linear.model.2 <- lm(log.crmrte ~ density + pctymle + polpc + taxpc + pctmin80, data = data)
+summary(linear.model.2)
+
+# now let's just dump all of them in here
+linear.model.3 <- lm(log.crmrte ~ ., data = data)
+summary(linear.model.3)
+
+# we have highest r squared value here with this one
