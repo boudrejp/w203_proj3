@@ -87,20 +87,39 @@ corrplot(cor.matrix, type = "upper")
 # prbarr is calculated using crime rate, prbconv using prbarr, and prbpris using prbconv
 # for a first pass, we probably want to avoid these as they are covariates
 
-# density appears to have a strong correlation with log crimerate
-# pctymle also appears to be close to independent of most other variables, let's try this
+# explore polpc before putting into linear model number 1
+summary(data$polpc)
+hist(data$polpc, breaks = 15)
+
+# we have one value that appears to be higher than the rest, let's take a look at this value in particular
+data[data$polpc > 0.007,]
+# this is the value that we manually assigned to have a prbconv to NA.
+# We should be skeptical about this point, but given no other context we will keep it
 
 linear.model.1 <- lm(log.crmrte ~ polpc, data = data)
 summary(linear.model.1)
+plot(x = data$polpc, y = data$log.crmrte,
+     main = "Police presence relationship to Log Crime Rate",
+     xlab = "Police per capita", ylab = "Log(Crime Rate)")
+abline(linear.model.1, col = "red")
 
-# now let's look at adding a few more terms
-# pctmin80 should be largely independent here and i think could help
-# wages all appear to be correlated with density... probably will absorb some causality. keep them out
-# polpc should decrease crime and be relatively independent of others
-# taxpc might be correlated with polpc but is independent of all others more or less
+# explore all of our variables before we put them into linear model 2
+
+library(car)
+scatterplotMatrix(~ density + polpc + taxpc, data = data)
+
+# polpc and taxpc appear to be positively correlated
+# maybe we look at log transforms?
+scatterplotMatrix(~ log(density) + log(polpc) + log(taxpc), data = data)
+# this doesn't really help find any relationships. let's just stay with the regular
 
 linear.model.2 <- lm(log.crmrte ~ density + polpc + taxpc, data = data)
 summary(linear.model.2)
+
+plot(x = linear.model.2$fitted.values, y =linear.model.2$residuals,
+     main = "Model with covariates residuals",
+     xlab = "Fitted Value", ylab = "Residual")
+abline(h = 0, col = "red")
 
 # now let's just dump all of them in here
 linear.model.3 <- lm(log.crmrte ~ density + polpc + taxpc + west + central + wsta + avgsen, data = data)
