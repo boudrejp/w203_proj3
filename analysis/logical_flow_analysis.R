@@ -102,6 +102,17 @@ plot(x = data$polpc, y = data$log.crmrte,
      main = "Police presence relationship to Log Crime Rate",
      xlab = "Police per capita", ylab = "Log(Crime Rate)")
 abline(linear.model.1, col = "red")
+plot(linear.model.1, which = 1)
+
+# it appears a few points are weighting our model. let's take them out and see how much better we can get
+data2 <- data[data$polpc < 0.0027,]
+linear.model.1.2 <- lm(log.crmrte ~ polpc, data = data2)
+plot(linear.model.1.2, which = 5)
+plot(x = data2$polpc, y = data2$log.crmrte,
+     main = "Police presence relationship to Log Crime Rate",
+     xlab = "Police per capita", ylab = "Log(Crime Rate)")
+abline(linear.model.1.2, col = "red")
+# need to ask... is this valid though? can we really take these out??
 
 # explore all of our variables before we put them into linear model 2
 
