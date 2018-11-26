@@ -1,0 +1,378 @@
+---
+title: "W203 Section 0904 Lab 3: Reducing Crime"
+author: "Jason Baker, John Boudreaux, Alex West"
+date: "11/23/2018"
+output: pdf_document
+header includes:
+  - \usepackage{graphicx}
+  - \usepackage[english]{babel}
+  - \usepackage{amsmath}
+  - \usepackage{amssymb}
+  - \numberwithin{equation}{subsection}
+  - \usepackage{hyperref}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+How do you reduce crime? Leaders have wrestled with this question since the dawn of civilization, focusing on all elements of society from education, to economics, to criminal punishment. The candidate released a platform that includes public safety and reduction of crime as a core component, and hired our firm to analyze the data and present policy recommendations. The dataset includes variables describing multiple facets of the North Carolina population, including demographics, law enforcement, criminal punishment, population density, wages, and more. Our approach is to examine the dependent variable, crime rate, against only those variables that we believe can be specifically affected by public sector resources, which therefore have public policy solutions. 
+
+#### Research question:
+Can the crime rate be reduced with public sector resources? Do we have direct levers to influence crime rate? 
+
+## Data Loading and Cleaning
+Our data come from a 1994 study from Cornwell and Trumball, who collected various panel data from counties across North Carolina. We will use R (>= 3.4.3) in order to analyze our data and create models.
+
+We first load in the data to our session, and run some basic summary commands to get a broad understanding of the data.
+
+
+```{r}
+data <- read.csv("../data/crime_v2.csv")
+# summary(data) # alternate means to explore data
+str(data)
+
+```
+
+We can see that our data primarily has numerical fields, some of which are binary categorical variables (west, central, urban) with values of 0 and 1. Because we will be performing a linear regression, it will be useful to keep these as numerical variables rather than discrete factors. Since the ‘county’ and ‘year’ variables only act as identifying labels on our data, we can remove these from our data frame to reduce its size with no adverse effects to our working data. We will save these into vectors that we can reference later, should the need arise.
+
+```{r}
+county <- data$county
+data$county <- NULL
+year <- data$year
+data$year <- NULL
+```
+
+A next logical step for us is to look into the ‘prbconv’ variable, and why it is being treated as a factor instead of a numeric.
+
+```{r}
+data$prbconv
+```
+
+We can see that there are entries that are not numeric, with commas, apostrophes, and other characters. Unfortunately, considering we expect this field to be numerical values, we should treat these as missing data since it is likely entered incorrectly. For our analysis, we will simply replace them with NA values. We can do this while converting all of the numeric values into R-numeric format with the following command, which will coerce all the non-numerics to NA.
+
+```{r}
+data$prbconv <- as.numeric(as.character(data$prbconv))
+```
+
+At this point, we should look at the missing values throughout our data. We will do this by searching for the missing rows in each column of the data frame.
+
+```{r}
+na.rows <- lapply(data, function(x){which(is.na(x))})
+na.rows
+```
+
+Rows 92 through 97 are missing values for nearly every column in our data. Given this, we should be skeptical about the information that the existing values give us in these rows. For our analysis, we will drop all of these rows entirely since we do not know the exact methods in which these data were collected.
+
+```{r}
+data <- data[-c(92:97),]
+```
+
+
+While our group analyzed boxplots and histograms for all variables in the data, we will only highlight a few for the sake of brevity. We should point out the ‘prbconv’ variable, which is supposed to be the probability of a conviction given an arrest. Because this is a probability, it does not make sense to have any values above 1. We manually set these values to NA.
+
+```{r fig.width=3.5, fig.height=2.5}
+# command for running all boxplots, histograms for all variables 
+# for(i in 1:ncol(data)){
+#   if(is.numeric(data[[i]])){
+#     hist(data[[i]], breaks = 15, main = colnames(data)[i])
+#     boxplot(data[[i]], main = colnames(data)[i]
+#   }
+# }
+
+# commands for exploring prbconv
+hist(data$prbconv, breaks = 20, main = "prbconv")
+data$prbconv[data$prbconv > 1] <- NA
+```
+
+While there are statistical outliers in nearly all of our variables according to the boxplots, which calculate outliers as 1.5 +- IQR, we cannot simply eliminate all statistical outliers because we do not have a grasp on the realistic boundaries of these data. Given we do not have much information about the collection methods for this data set, we choose to keep the majority of these “outliers” considering we do not have information that says they are not reflective of reality.
+
+There is one exception to the comments above, however. With the ‘wser’ variable, we see that there is a single outlier that lies extremely far away from the rest of the data. Our group finds this point to be very suspect, and will remove it from further analysis. Performing a hypothesis test might provide further justification, but we will keep this out of the report for the sake of brevity.
+
+
+
+```{r fig.width=4, fig.height=3}
+mean(data$wser, na.rm = TRUE)
+median(data$wser, na.rm = TRUE)
+boxplot(data$wser)
+
+
+# let's set our major outlier to NA just for wser
+data$wser[data$wser > 1500] <- NA
+
+```
+## Model Building
+
+With our primary objective looking towards the impact of public sector resources on current crime rates our initial step was to investigate the Crime Rate (‘crmrte’).  A cursory look at the summary and histogram plots indicate the ‘crmrte’ is rightly skewed. In an effort to reduce skewness, preserve linear relationships, and allowing for comparisons of relative differences as opposed to absolute differences, it was determined to conduct a log transformation of the ‘crmrte’ variable.  The resulting histogram was more normally distributed and led to better fit regression models. 
+
+```{r fig.width=4, fig.height=3}
+hist(data$crmrte, main = "Crime Rate")
+hist(log(data$crmrte), main = "Log Transform of Crime Rate")
+data$log.crmrte <- log(data$crmrte)
+```
+We continued investigating the remainder of the data, searching for variables the public sector could potentially influence in the hopes of reducing crime within the state of North Carolina. We deemed the Police per Capita (‘polpc’) as a possible primary explanatory variable due to the perceived effect higher police presence has on the reduction of crime.  Furthermore, additional Tax Revenue per Capita (‘taxpc’) was noted as an additional variable of interest due to the ability to strengthen police forces or the funding of programs directed towards education, job creation, and other programs aimed specifically at reducing crime. Population ‘density’, while not within control or influence of local governments, was considered a valid regressor as it could highlight the rate of crime with respect to higher populations thereby directing governments to geographic areas where resources could be allocated.
+
+With variables of interest having been determined, we further inspected the chosen regressors.  In looking at histograms for each variable, police per capita was found to be rightly skewed with a median value of 0.0014853 and a slightly higher mean of 0.0017022, likely due to the maximum value of 0.0090543. This maximum value warranted additional attention as it was significantly larger than the median value; this is addressed in the base model discussion below.
+
+```{r fig.width=4, fig.height=3}
+hist(data$polpc, main = "Histogram of Police per Capita", 
+     xlab = NULL)
+```
+
+The histogram for tax revenue per capita is rightly skewed as well, having a median value of 34.87, a mean of 38.06, and a maximum of 119.76.
+
+```{r fig.width=4, fig.height=3}
+hist(data$taxpc, main = "Histogram of Tax Revenue per Capita", 
+     xlab = NULL)
+```
+
+We also find the density histogram is rightly skewed with a median value of 0.96226, a mean of 1.4288 and a maximum of 8.82765. 
+
+```{r fig.width=4, fig.height=3}
+hist(data$density, main = "Histogram of People per Sq Mile", 
+     xlab = NULL)
+```
+
+Having applied the log transformation to the crime rate variable, and completing a thorough exploratory investigation of the remaining data, the team began constructing multiple regression models aimed at addressing the level of impact of our selected explanatory variables.
+
+
+Our approach looked initially at a single variable, police per capita:  
+
+$$log(Crime \space rate) = \beta_0 + \beta_1(Police \space per \space capita) + u$$
+
+Our second model took tax revenue per capita and density into account:
+
+$$log(Crime \space rate) = \beta_0 + \beta_1(Police \space per \space capita) + \beta_2(density) + \beta_3(Tax \space per \space capita) + u$$
+
+Our final model accounted for the geographic region, the weekly wage for state employees, and the average sentence length. 
+
+$$log(Crime \space rate) = \beta_0 + \beta_1(Police \space per \space capita) + \beta_2(density) + \beta_3(Tax \space per \space capita) + $$
+$$\beta_4(west) + \beta_5(central) + \beta_6(urban) + \beta_7(state \space wage) + \beta_8(average \space sentence) + u$$
+
+In order to infer anything from this data analysis, it is necessary to articulate the assumptions that allow the models to function. These assumptions are known as the classical linear model assumptions.
+
+1. Linear in Parameters
+- The true relationship between our explanatory variables and the crime rate is linear (not parabolic, or exponential, or any other shape). In order for our ordinary linear regression analysis to be valid, we are assuming this to be true.
+- Possible obstacles: the relationship between the variables may not be linear in nature. Our models in this analysis may not capture the nuance.
+2. Random Sampling
+- We are assuming that the sample is independent and identically distributed, meaning that each data point is independent and does not affect any other data points (one draw does not affect any other draws). 
+- Possible obstacles: With the nature of an external dataset, it’s impossible to know this for certain.
+- We can be reasonably sure because this data has been used with some success in other research, however that is not always a good indicator of random sampling.
+3. No Perfect Collinearity
+- We are assuming that there is no exact linear relationship among the independent variables. In other words, the variable measuring police per capita is not also measuring tax revenue, density, etc. In this particular dataset we are not comparing items with the same units, and we are relatively confident that there is no perfect collinearity amongst the independent variables. 
+- Possible obstacles: We expect some of the variables to be correlated (such as tax revenue and density) but not perfectly correlated. If they are, the model cannot be estimated by ordinary least squares regression, however upon dropping one of the linearly dependent terms we could perform OLS regression.
+- We also note that the R regression function, lm(), automatically checks for perfect collinearity and will return a warning specifying a rank-deficient matrix should this be the situation with the data. Given our code generates no warnings, we can confirm CLM assumption 3.
+4. Zero Conditional Mean
+- There is no functional relationship between our explanatory variables (police per capita, tax revenue, density, etc) and the error term, u. 
+- Possible obstacles: This is a difficult assumption to assert since we are working with one year of data and may be subject to omitted variable bias. We will discuss this in greater detail later on in the analysis.
+5. Homoskedasticity
+- Variance of the error term does not depend on the levels of the explanatory variables. In other words, the variance in the error term, u, conditional on any of our explanatory variables, is the same for all combinations of outcomes. 
+- Possible obstacles: If this assumption does not hold and the error term varies differently with each explanatory variable, or even within one variable, the results of the regression should not be trusted.
+6. Normality
+- The error is independent of the explanatory variables and is normally distributed. This assumption is much stronger than the previous assumptions, and if true, automatically includes assumptions 4 and 5. 
+With a large sample size we can implicitly assume normality by invoking the Central Limit Theorem. 
+
+### Base Model
+The base model involves the most visible public resource in law enforcement and crime prevention: police. In this model the dependent variable is ‘crime rate’ and the independent variable is ‘police per capita.’ 
+
+The model looks like this: 
+
+$$ log(Crime \space rate) = \beta_0 + \beta_1(Police \space per \space capita) + u$$
+
+
+```{r fig.width=4, fig.height=3}
+plot(data$polpc, log(data$crmrte), xlab = "police per capita", 
+         ylab = "log of crime rate", main = "police per capita vs. crime rate")
+(linear.model.1 <- lm(log(crmrte) ~ polpc, data = data))
+abline(linear.model.1)
+summary(linear.model.1)$r.square
+
+```
+
+There is just one coefficient in this model, and it represents the relationship between the ratio variable of ‘police per capita’ and the log transformation of the crime rate. According to this model, each extra member of the police force is associated with 6.9(check) change in the log of crime rate. This is surprising considering the generally held belief that police help to prevent crime. However, it is important to realize that the police variable here is normalized for population, so this model may just be measuring that the more people are located in an area, the higher the crime rate. 
+
+We did notice a potential outlier in the data and explored it a bit more. 
+
+First, we explored the entire row housing the high police per capita data point - does the county have a particularly dense population? 
+
+```{r}
+# row for outlier
+print("Data from the row with the outlier:")
+print(data[data$polpc > 0.006,])
+
+# medians for comparison
+print("The median values for our data:")
+print(apply(data, 2, function(x){median(x, na.rm = TRUE)}))
+
+```
+The density at that is 0.38 (lower than the median) - so no, the county is not particularly dense.
+
+Next, we performed Cook’s test to determine if the outlier truly affects the data.
+
+```{r fig.width=4, fig.height=3}
+plot(linear.model.1, which = 5)
+```
+
+Cook’s test proved that the point is a true outlier and affects the model significantly. We then removed the data point to observe the effect on the data:
+
+```{r fig.width=4, fig.height=3}
+# it appears a few points are weighting our model.
+# let's take them out and see how much better we can get
+data2 <- data[data$polpc < 0.0027,]
+linear.model.1.2 <- lm(log(crmrte) ~ polpc, data = data2)
+plot(linear.model.1.2, which = 5)
+plot(x = data2$polpc, y = data2$log.crmrte,
+     main = "Police presence relationship to Log Crime Rate",
+     xlab = "Police per capita", ylab = "Log(Crime Rate)")
+abline(linear.model.1.2, col = "red")
+
+```
+
+If removed, the coefficient jumps to 14, meaning a change in one police officer per capita (which would also signify a change in population) would result in a change in the log of the crime rate of 14.
+
+It is clear that this univariate model is not enough to measure the effect of increasing the number of police per capita. First of all, the model is measuring multiple variables within one variable, and may in fact be a better predictor of population density than police presence. It will be necessary to add other elements to the model to help control for these effects.
+
+### Second Model
+
+Our second model incorporates a few new covariates: population density and tax revenue per capita. The rationale to incorporate both of these has been discussed previously, as these are both directly related the resources available to implement new policy and also the potential policy impact. Population density in particular is an important variable to include, as it may reduce some of the bias introduced by ‘police per capita.’
+
+Our new linear model will take the form:
+$$log(Crime \space rate) = \beta_0 + \beta_1(Police \space per \space capita) + \beta_2(density) + \beta_3(Tax \space per \space capita) + u$$
+
+Before computing this linear model, we should first take a look at all of our regressors to understand their relationships and especially to see if any might be completely linearly dependent. If we found this, we would violate CLM assumption 3.
+
+```{R}
+library(car)
+scatterplotMatrix(~ density + polpc + taxpc, data = data)
+```
+While police per capita and tax per capita appear to be positively correlated, there is no concern for perfect collinearity. We assume that the remainder of the CLM assumptions hold true, and will check the validity of these upon calculation of the model.
+
+```{r}
+linear.model.2 <- lm(log(crmrte) ~ density + polpc + taxpc, data = data)
+summary(linear.model.2)
+```
+ 
+It is particularly interesting that our coefficient for the police per capita has now changed from a positive value to a larger negative value. We will discuss this in more detail later in our report when we compare all of our linear models together, as this tells us useful information about omitted variable bias.
+
+The interpretation of density is intuitive; as density increases, we expect the crime rate to increase at a rate of 0.21% per unit of density increase (people per square mile). Our value for tax per capita, however, is less intuitive. The coefficient suggests that crime rate increases with an increase in tax per capita. Our group proposes that this is again due to bias effects from covariates and omitted variables. It may be useful to note that a univariate regression of tax per capita with the log transformed crime rate yields a positive coefficient of 0.015, so the inclusion of our new variables has accounted for some of the bias here.
+
+Our multiple R Squared value is 0.4471, which suggests that our model explains about 44.7% of the variance in the data. The more useful statistic to observe, however, is the adjusted R squared of 0.428. This statistic also measures the variance in the data explained by the model, but also has corrections for including additional terms. 
+
+```{r fig.width=4, fig.height=3}
+plot(linear.model.2, which = 1)
+plot(linear.model.2, which = 2)
+```
+
+Upon looking at our residuals vs fitted value plot we see that our values remain scattered relatively evenly around zero, with some extreme values on the high and low ends that could possibly be outliers. This validates CLM assumption 4. We can see from that our Normal Q-Q plot for residuals falls closely to the expected line for normally distributed residuals, with the exception of an extreme point on the higher and lower end. Given that the majority of our data fall close to expected values for normally distributed values, we can say that CLM assumption 6 holds which implies CLM assumption 5 holds as well.
+
+```{r fig.width=4, fig.height=3}
+plot(linear.model.2, which = 5)
+```
+
+When looking further into the Cooks distance we see that we have two points that are identified as highly influential, with a Cooks distance greater than 1. These were also both the points that were the furthest away from our Normal Q-Q plot. We note that while excluding these values would likely lead to a more explanatory model, we do not have enough information about the data to remove these from the analysis.
+
+### Third Model
+
+Our third model incorporates as many covariates as we possibly can, in order to demonstrate the “kitchen sink” approach to ordinary least squares regression. On top of our original explanatory variables of police per capita, tax revenue per capita, and population density, we are including average sentence in days, geographic indicators like west, central, and urban, and wages of state employees. The rationale to incorporate all of these in addition to the others is to illustrate that while we can create a model that raises the statistical significance of certain variables, it may be misleading and suggest relationships where there are none. The extra variables chosen fit the research question - public policy solutions can work to affect sentence time, where resources are focused geographically, and wages of state employees. However, in the original model building process we felt other variables were more appropriate to focus on.
+
+Our third linear model will take the form:
+$$log(Crime \space rate) = \beta_0 + \beta_1(Police \space per \space capita) + \beta_2(density) + \beta_3(Tax \space per \space capita) + \beta_4(west) + \beta_5(central) +$$
+$$\beta_6(urban) + \beta_7(state \space wage) + \beta_8(average \space sentence) + u$$
+
+Before computing this linear model, we first took a look at all of our regressors to understand their relationships and especially to see if any might be completely linearly dependent. If we found this, we would violate CLM assumption 3. We performed a scatterplot matrix but did not include in the analysis in the interest of brevity. 
+
+While police per capita and tax per capita again appear to be positively correlated, there is no concern for perfect collinearity. Additionally, density and urban appear to be positively correlated, which is a good sanity check on our data. Tax per capita and urban also appear to be positively correlated. There do not appear to be any relevant negative correlations.
+
+We will assume that CLM assumptions 1 - 3 hold true, and will check the validity of CLM assumptions 4 - 6 upon calculation of the model.
+
+```{r}
+linear.model.3 <- lm(log(crmrte) ~ density + polpc + taxpc + west + central + wsta + avgsen, data = data)
+summary(linear.model.3)
+```
+
+In comparison with our second model, the coefficient for police has increased while the coefficient for tax revenue has reduced, and density has remained relatively unchanged.  The R squared values have improved with the new model but with the inclusion of additional variables, we must be wary of overfitting or spurious correlations. The addition of more independent variables within the regression leads to a greater probability that one or more will be found to be statistically significant, yet having no causal effect on the dependent variable.  Although this model incorporates many new variables, it still does not include many important omitted variables from the other models that will be referenced further in the report. We should be wary of the improved accuracy that this model provides since there are many factors that do not directly measure our dependent variable.
+
+
+## Regression Table
+
+```{r}
+library(stargazer)
+stargazer(linear.model.1, linear.model.2, linear.model.3, 
+          title = "Results",
+          align = TRUE)
+```
+
+We can see from our regression table that our last model has the best predictive power, based upon the comparatively high adjusted R Squared value of 0.524. Our original model, only utilizing police per capita, is extremely poor for predictive power with a negative adjusted R squared value. 
+
+Although police per capita is perhaps the most direct policy lever we have available, the poor R squared value and the fact that the ‘polpc’ variable changes drastically in each of our models implies that there is insufficient proof of causality. The changing coefficients show the effects of the omitted variables that were included in each subsequent model; this will be discussed further in the following section on omitted variables.
+
+It is interesting to note that the coefficient for density increased in significance after the inclusion of other effects pertaining to locality, such as west and central. This would suggest that geography is a better predictor of crime rate than police per capita, as we originally thought. Although it may be a decent predictor, we are inclined to say that this is a case of correlation rather than causation since it is more likely that certain omitted variables such as unemployment may be correlated to geography. It is these omitted variables that we are more interested in for a causal analysis rather than density or geography themselves.
+
+## Omitted Variables
+As we are limited to one year of data and are using ordinary least squares regression, it is possible that these findings may be heavily influenced by omitted variable bias. 
+
+Possible variables that have been omitted from this dataset may include:
+- Speed of Sentencing/Conviction
+- Severity of Punishment (“Harshness”, fines, types…jail/community service)
+- Educational attainment level of population (% with HS diploma, Assoc degree, bach degree or higher)
+- Unemployment rate by county
+- Happiness and fulfillment 
+
+The crime rate has a cause, and if we could just write all of the causes correctly, we would have a causal model. The central problem is that even though these causes exist, we can’t measure all of them. Some of the possible omitted variables are measurable, like educational attainment, and some are not, like happiness. 
+
+We will discuss the possible effects of omitted variables on the base model, as police per capita is the most direct and visible public policy avenue for reducing crime.
+
+#### Base model: 
+$$Crime \space rate = \beta_0 + \beta_1(police \space per \space capita) +u$$
+
+Our base model determined that the $\beta_1$ coefficient is positive. This factors heavily into the analysis of the omitted variable bias. Though not what we would like to see and not what we see in subsequent models, this coefficient remains positive throughout the analysis in order to show the effects of omitted variables on this base model specifically.
+
+We first write down both equations (expressing the first equations in terms of the omitted variable (for the purposes of demonstration, we’ll choose the first omitted variable on the list, speed of sentencing):
+
+#### Omitted: speed of sentencing/conviction
+
+$$Crime \space rate = \beta_0 + \beta_1(police \space per \space capita) + \beta_2(speed \space of \space sentencing \space /conviction) + u$$
+$$speed \space of \space sentencing \space /conviction = \alpha_0 + \alpha_1(police \space per \space capita) + u$$
+
+Then, we apply background knowledge to estimate whether omitted variable bias will drive the slope coefficient towards zero or away from zero:
+
+In this case, we believe the $\beta_2$ coefficient will be less than 0 (or negative), and the $\alpha_1$ coefficient is difficult to pinpoint (does more police presence increase the speed of sentencing or is that purely the realm of the courts?). If it is related at all, the relationship is likely slightly positive ( $\alpha_1>0$). Therefore the omitted variable bias (OMVB) = $\beta_2\alpha_1<0$, and we’ve already calculated $\beta_1$ to be greater than 0 (the effect of police per capita on crime rate is positive according to the data). As a result of the omitted variable bias, the OLS coefficient on police per capita will be scaled toward zero (less positive), losing statistical significance.
+
+Given that the perceived omitted variable bias for speed of sentencing/conviction is negative, the OLS estimates that we performed in the base model will underestimate the marginal effect of police per capita on crime rate. Furthermore it will scale the coefficient closer to zero, making it harder to reject the null hypothesis, and lose statistical significance. 
+
+We can apply this same technique to our multiple omitted variables. $\beta_1$, or our coefficient of police per capita, is always positive (in our base model), and each coefficient analysis requires background knowledge and estimation. Our analysis determines that the ordinary least squares regression in our base model underestimates the effects of most of the possible omitted variables, indicating that our original base model has very little statistical significance. 
+
+\begin{center}
+ \begin{tabular}{||c c c c c c||} 
+ \hline
+ Omitted Variable & $\beta_2$ +/- & $\alpha_1$ +/- & $\beta_1$ +/- (from base model) & OMVB  $\beta_2\alpha_1$ +/- & OLS significance \\ [0.5ex] 
+ \hline\hline
+ Speed of Sentencing/Conviction & - & +(a little) & + & - & Decreasing (scaled toward 0)\\ 
+ \hline
+ Severity of Punishment & - & +(a little) & + & - & Decreasing (scaled toward 0)\\
+ \hline
+ Educational attainment & - & No correlation (or minimal) & + & 0 & No effect to base model \\
+ \hline
+ Unemployment & + & No correlation (or minimal) & + & 0 & No effect to base model\\
+ \hline
+ Happiness & - & +(a little) & + & - & Decreasing (scaled toward 0)\\ [1ex] 
+ \hline
+\end{tabular}
+\end{center}
+
+This is expected given our original analysis, and the reason for including multiple variables in subsequent models. 
+
+## Conclusion
+As with most data analysis, we are left with some insights and more questions rather than absolute answers. 
+
+The candidate is building a platform on public safety and crime reduction. We do not have any variables from our analysis that can be used effectively as direct policy levers, such as police presence, however this analysis allows us to conclude that the following public policy solutions could be applied to affect the crime rate via proxy metrics:
+1. Density is the best “lever” we have available - perhaps we look into incentivizing people to move to less populated areas.
+2. Incentivize businesses to create jobs in less dense areas.
+3. Do not apply the same solution indiscriminately around the state. Given that our most significant coefficients were related to density and geographic location, it makes sense to learn more about the drivers of crime specific to each location. 
+
+Further analysis especially focused on these areas may yield clearer results.
+
+High level concerns of a political campaign are different than the high level concerns of an elected politician. It is a different question to pose: will reducing crime rate get our candidate elected? Or the appearance of “being tough on crime”? Increasing police presence may actually be better for the purposes of getting elected. We need to ask more about what will get a candidate elected, and this would likely require different data than what is given.
+
