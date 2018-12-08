@@ -126,6 +126,8 @@ scatterplotMatrix(~ log(density) + log(polpc) + log(taxpc), data = data)
 
 linear.model.2 <- lm(log.crmrte ~ density + polpc + taxpc, data = data)
 summary(linear.model.2)
+plot(linear.model.2, which = 1)
+plot(linear.model.2, which = 5)
 
 plot(x = linear.model.2$fitted.values, y =linear.model.2$residuals,
      main = "Model with covariates residuals",
@@ -135,5 +137,8 @@ abline(h = 0, col = "red")
 # now let's just dump all of them in here
 linear.model.3 <- lm(log.crmrte ~ density + polpc + taxpc + west + central + wsta + avgsen, data = data)
 summary(linear.model.3)
+
+plot(linear.model.3)
+
 
 # we have highest r squared value here with this one
