@@ -45,6 +45,7 @@ hist(data$prbarr, breaks = 20, main = 'prbarr')
 # basic stats for sanity
 mean(data$wser, na.rm = TRUE)
 median(data$wser, na.rm = TRUE)
+par(mfrow = c(1,1))
 boxplot(data$wser, main = 'wser')
 
 
@@ -72,9 +73,15 @@ hist(data$taxpc, main = "Histogram of Tax Revenue per Capita",
      xlab = NULL)
 hist(data$density, main = "Histogram of People per Sq Mile", 
      xlab = NULL)
-print(paste0('polpc | median: ', median(data$polpc), ' | mean: ', mean(data$polpc)))
-print(paste0('taxpc | median: ', median(data$taxpc), ' | mean: ', mean(data$taxpc)))
-print(paste0('polpc | median: ', median(data$density), ' | mean: ', mean(data$density)))
+print(paste0('polpc | median: ', median(data$polpc), 
+             ' | mean: ', mean(data$polpc),
+             ' | max: ', max(data$polpc)))
+print(paste0('taxpc | median: ', median(data$taxpc), 
+             ' | mean: ', mean(data$taxpc),
+             ' | max: ', max(data$taxpc)))
+print(paste0('polpc | median: ', median(data$density), 
+             ' | mean: ', mean(data$density),
+             ' | max: ', max(data$density)))
 
 # block 11
 par(mfrow = c(2,3))
@@ -88,8 +95,90 @@ hist(data$urban, main = "Urban",
      xlab = NULL)
 hist(data$west, main = "West", 
      xlab = NULL)
+print(paste0('avgsen | median: ', median(data$avgsen), 
+             ' | mean: ', mean(data$avgsen),
+             ' | max: ', max(data$avgsen)))
+print(paste0('wsta | median: ', median(data$wsta), 
+             ' | mean: ', mean(data$wsta),
+             ' | max: ', max(data$wsta)))
+print(paste0('central | mean: ', mean(data$central)))
+print(paste0('urban | mean: ', mean(data$urban)))
+print(paste0('west | mean: ', mean(data$west)))
 
 # block 12
+par(mfrow = c(1,1))
+plot(data$polpc, log(data$crmrte), xlab = "police per capita", 
+     ylab = "crime rate", main = "police per capita vs. crime rate")
+linear.model.1 <- lm(log(crmrte) ~ polpc, data = data)
+abline(linear.model.1, col = "red")
+print(paste0("R squared: ", summary(linear.model.1)$r.square))
+print("Coefficients: ")
+linear.model.1$coefficients
+
+# block 13
+# row for outlier
+print("Data from the row with the outlier:")
+print(data[data$polpc > 0.006,])
+
+# medians for comparison
+print("The median values for our data:")
+print(apply(data, 2, function(x){median(x, na.rm = TRUE)}))
+
+# block 14
+
+plot(linear.model.1, which = 5)
+
+# block 15
+par(mfrow = c(1,3))
+plot(linear.model.1, which = 1) # residuals vs fitted plot 
+plot(linear.model.1, which = 3) # scale-location plot 
+plot(linear.model.1, which = 2) # normal qq plot
 
 
-                  
+# block 16
+library(lmtest)
+library(sandwich)
+
+coeftest(linear.model.1, vcov = vcovHC)
+
+# block 16.1
+data$log.polpc <- log(data$polpc)
+par(mfrow = c(1,1))
+hist(data$log.polpc, breaks = 15, main = "Log Transform of Police per Capita")
+
+# block 17
+library(car)
+scatterplotMatrix(~ density + log.polpc + taxpc, data = data)
+
+
+# block 18
+linear.model.2 <- lm(log.crmrte ~ density + log.polpc + taxpc, data = data)
+print("Coefficients:")
+linear.model.2$coefficients
+
+# block 19
+par(mfrow = c(1,3))
+plot(linear.model.2, which = 1)
+plot(linear.model.2, which = 3)
+plot(linear.model.2, which = 2)
+
+# block 20
+coeftest(linear.model.2, vcov = vcovHC)
+
+
+# block 21
+plot(linear.model.2, which = 5)
+
+# block 22
+library(car)
+CORRPLOT(~ density + polpc + taxpc + avgsen + west + central + urban + wsta, data = data)
+
+# block 23
+linear.model.3 <- lm(log.crmrte ~ 
+                       density + log(polpc) + taxpc + west + central + 
+                       urban + wsta + avgsen, data = data)
+
+
+
+
+
