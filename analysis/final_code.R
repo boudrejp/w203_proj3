@@ -109,7 +109,7 @@ print(paste0('west | mean: ', mean(data$west)))
 par(mfrow = c(1,1))
 plot(data$polpc, log(data$crmrte), xlab = "police per capita", 
      ylab = "crime rate", main = "police per capita vs. crime rate")
-linear.model.1 <- lm(log(crmrte) ~ polpc, data = data)
+linear.model.1 <- lm(log.crmrte ~ polpc, data = data)
 abline(linear.model.1, col = "red")
 print(paste0("R squared: ", summary(linear.model.1)$r.square))
 print("Coefficients: ")
@@ -186,11 +186,9 @@ corrplot(cor(corrplot.data), type = "upper")
 linear.model.3 <- lm(log.crmrte ~ 
                        density + log.polpc + taxpc + west + central + 
                        urban + wsta + avgsen + polpc.density, data = data)
-print("Coefficients:")
-linear.model.3$coefficients
-
-# block 23.2
+print("Coefficients and robust standard errors:")
 coeftest(linear.model.3, vcov = vcovHC)
+
 
 # block 24
 par(mfrow = c(2,2))
@@ -205,21 +203,44 @@ durbinWatsonTest(linear.model.3)
 
 # block 26
 # remove urban
-linear.model.3.r3 <- lm(log.crmrte ~ 
+linear.model.3.r <- lm(log.crmrte ~ 
                        density + log.polpc + taxpc + west + central + 
                        wsta + avgsen + polpc.density, data = data)
 print("Coefficients:")
-coeftest(linear.model.3.r3, vcov = vcovHC)
+coeftest(linear.model.3.r, vcov = vcovHC)
 
+# block 27
+# standard errors
+print("Standard errors:")
+coeftest(linear.model.3)
+print("")
+print("White Standard errors:")
+coeftest(linear.model.3, vcov = vcovHC)
 
-### future block for stargazer
+# block 28
+par(mfrow = c(1,1))
+hist(linear.model.3.r$residuals, breaks = 50,
+     main = "Histogram of residuals")
+
+# block 29
+shapiro.test(linear.model.3.r$residuals)
+
+# block 30
 compute.robust.errors <- function(linear.model){
-  robust.errors <- sqrt(diag(vconvHC(linear.model)))
+  robust.errors <- sqrt(diag(vcovHC(linear.model)))
   return(robust.errors)
 }
-### replace pars
-stargazer(model1, model2, type = 'text', omit.stat = 'f',
-          se = list(se1, se2), 
-          star.cutoffs = c(0.05, 0.01, 0.001))
+robust.errors.list <- list(compute.robust.errors(linear.model.1),
+                           compute.robust.errors(linear.model.2),
+                           compute.robust.errors(linear.model.3),
+                           compute.robust.errors(linear.model.3.r))
+
+library(stargazer)
+stargazer(linear.model.1, linear.model.2, linear.model.3, linear.model.3.r,
+          type = 'text', omit.stat = 'f',
+          se = robust.errors.list, 
+          star.cutoffs = c(0.05, 0.01, 0.001),
+          align = TRUE,
+          title = "Results")
 
 
