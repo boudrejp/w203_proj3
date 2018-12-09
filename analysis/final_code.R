@@ -162,6 +162,10 @@ plot(linear.model.2, which = 1)
 plot(linear.model.2, which = 3)
 plot(linear.model.2, which = 2)
 
+# block 19.1
+par(mfrow = c(1,1))
+plot(linear.model.2, which = 5)
+
 # block 20
 coeftest(linear.model.2, vcov = vcovHC)
 
@@ -170,15 +174,52 @@ coeftest(linear.model.2, vcov = vcovHC)
 plot(linear.model.2, which = 5)
 
 # block 22
-library(car)
-CORRPLOT(~ density + polpc + taxpc + avgsen + west + central + urban + wsta, data = data)
+# creation of polpc * density
+data$polpc.density <- data$polpc * data$density
+
+library(corrplot)
+corrplot.data <- data[,c('density', 'log.polpc', 'taxpc', 
+                         'avgsen', 'west', 'urban', 'central', 'wsta', 'polpc.density')]
+corrplot(cor(corrplot.data), type = "upper")
 
 # block 23
 linear.model.3 <- lm(log.crmrte ~ 
-                       density + log(polpc) + taxpc + west + central + 
-                       urban + wsta + avgsen, data = data)
+                       density + log.polpc + taxpc + west + central + 
+                       urban + wsta + avgsen + polpc.density, data = data)
+print("Coefficients:")
+linear.model.3$coefficients
+
+# block 23.2
+coeftest(linear.model.3, vcov = vcovHC)
+
+# block 24
+par(mfrow = c(2,2))
+plot(linear.model.3, which = 1)
+plot(linear.model.3, which = 3)
+plot(linear.model.3, which = 2)
+plot(linear.model.3, which = 5)
 
 
+# block 25
+durbinWatsonTest(linear.model.3)
 
+# block 26
+# remove urban
+linear.model.3.r3 <- lm(log.crmrte ~ 
+                       density + log.polpc + taxpc + west + central + 
+                       wsta + avgsen + polpc.density, data = data)
+print("Coefficients:")
+coeftest(linear.model.3.r3, vcov = vcovHC)
+
+
+### future block for stargazer
+compute.robust.errors <- function(linear.model){
+  robust.errors <- sqrt(diag(vconvHC(linear.model)))
+  return(robust.errors)
+}
+### replace pars
+stargazer(model1, model2, type = 'text', omit.stat = 'f',
+          se = list(se1, se2), 
+          star.cutoffs = c(0.05, 0.01, 0.001))
 
 
