@@ -243,4 +243,7 @@ stargazer(linear.model.1, linear.model.2, linear.model.3, linear.model.3.r,
           align = TRUE,
           title = "Results")
 
+# block 31
+linearHypothesis(linear.model.3, "log.polpc + density + taxpc = 0")
+
 
